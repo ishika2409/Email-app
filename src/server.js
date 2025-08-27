@@ -1,46 +1,58 @@
 const express = require("express");
 const nodemailer = require("nodemailer");
-const bodyParser = require("body-parser");
+const multer = require("multer");
+const fs = require("fs");
 require("dotenv").config();
 
 const app = express();
-const PORT = 3000;
-
-app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static("public"));
 
-app.get("/", (req, res) => {
-  res.sendFile(__dirname + "/public/index.html");
-});
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
 
-app.post("/send-email", async (req, res) => {
-  const { emails, subject, description } = req.body;
+const upload = multer({ dest: "uploads/" });
 
-  const emailList = emails.split(",").map(e => e.trim());
-
-  const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-    }
-  });
-
+app.post("/send-email", upload.single("pdf"), async (req, res) => {
   try {
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: emailList,
-      subject: subject,
-      text: description
+    const { emails, subject, description } = req.body;
+    const emailList = emails.split(",").map(e => e.trim());
+
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
     });
 
+    let mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: emailList,
+      subject,
+      text: description,
+      attachments: [],
+    };
+
+    if (req.file) {
+      mailOptions.attachments.push({
+        filename: req.file.originalname,
+        path: req.file.path,
+        contentType: "application/pdf",
+      });
+    }
+
+    await transporter.sendMail(mailOptions);
+
+    if (req.file) {
+      fs.unlinkSync(req.file.path);
+    }
+
     res.send("✅ Email sent successfully!");
-  } catch (error) {
-    console.error(error);
-    res.send("❌ Error sending email.");
+  } catch (err) {
+    console.error("ERROR:", err);
+    res.status(500).send("❌ Failed to send email.");
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running at http://localhost:${PORT}`);
-});
+const PORT = process.env.PORT || 4000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
