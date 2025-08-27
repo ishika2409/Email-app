@@ -25,23 +25,25 @@ app.post("/send-email", upload.single("pdf"), async (req, res) => {
       },
     });
 
-    let mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: emailList,
-      subject,
-      text: description,
-      attachments: [],
-    };
+    for (const email of emailList) {
+      let mailOptions = {
+        from: process.env.EMAIL_USER,
+        to: email,
+        subject,
+        text: description,
+        attachments: [],
+      };
 
-    if (req.file) {
-      mailOptions.attachments.push({
-        filename: req.file.originalname,
-        path: req.file.path,
-        contentType: "application/pdf",
-      });
+      if (req.file) {
+        mailOptions.attachments.push({
+          filename: req.file.originalname,
+          path: req.file.path,
+          contentType: "application/pdf",
+        });
+      }
+
+      await transporter.sendMail(mailOptions);
     }
-
-    await transporter.sendMail(mailOptions);
 
     if (req.file) {
       fs.unlinkSync(req.file.path);
